@@ -10,15 +10,16 @@ plt.style.use("ggplot")
 plt.rcParams["figure.figsize"] = (15, 3)
 plt.rcParams["font.family"] = "sans-serif"
 
+'''
 # %%
 # By the end of this chapter, we're going to have downloaded all of Canada's weather data for 2012, and saved it to a CSV. We'll do this by downloading it one month at a time, and then combining all the months together.
 # Here's the temperature every hour for 2012!
-'''
+
 weather_2012_final = pd.read_csv("data/weather_2012.csv", index_col="date_time")
 weather_2012_final["temperature_c"].plot(figsize=(15, 6))
 plt.show()
 '''
-'''
+
 # TODO: rewrite using Polars
 weather_2012_final = pl.read_csv("data/weather_2012.csv")
 
@@ -36,7 +37,7 @@ plt.ylabel("Temperature (°C)")
 plt.title("Hourly Temperature in 2012")
 plt.legend()
 plt.show()
-'''
+
 
 '''
 # %%
@@ -85,10 +86,6 @@ pl_weather_mar2012 = pl_weather_mar2012.with_columns(
 print(pl_weather_mar2012.head())
 
 
-
-
-
-
 '''
 # %%
 # Let's clean up the data a bit.
@@ -104,23 +101,19 @@ print(weather_mar2012[:5])
 non_empty_columns = []
 
 for col in pl_weather_mar2012.columns:
-    # 检查列是否没有空值
+
     null_count = pl_weather_mar2012[col].null_count()
-    
-    # 仅在列为字符串类型时检查空字符串
+
     if null_count == 0:
         if pl_weather_mar2012[col].dtype == pl.Utf8:
-            empty_string_count = (pl_weather_mar2012[col] == "").sum()  # 统计空字符串的数量
+            empty_string_count = (pl_weather_mar2012[col] == "").sum() 
         else:
-            empty_string_count = 0  # 非字符串列不检查空字符串
+            empty_string_count = 0
 
         if empty_string_count == 0:
-            non_empty_columns.append(col)  # 如果列有效，则添加到非空列列表
-
-# 选择有效列
+            non_empty_columns.append(col)  
 pl_weather_mar2012_cleaned = pl_weather_mar2012.select(non_empty_columns)
 
-# 显示前 5 行数据
 print(pl_weather_mar2012_cleaned.head())
 
 
@@ -136,9 +129,7 @@ weather_mar2012[:5]
 # TODO: redo this using polars
 pl_weather_mar2012_cleaned = pl_weather_mar2012_cleaned.drop(["Year", "Month", "Day", "Time (LST)"])
 
-# 显示前 5 行数据
 print(pl_weather_mar2012_cleaned.head())
-
 
 '''
 # %%
@@ -156,20 +147,14 @@ weather_mar2012.columns = weather_mar2012.columns.str.replace(
 )  # Remove the weird characters at the
 '''
 
-
 # TODO: rewrite using Polars
 print(pl_weather_mar2012_cleaned.columns)
 
-# 使用 with_columns 和 str.replace 清理列名
 cleaned_columns = [col.replace('ï»¿"', "").replace("Â", "") for col in pl_weather_mar2012_cleaned.columns]
 
 pl_weather_mar2012_cleaned = pl_weather_mar2012_cleaned.rename({old: new for old, new in zip(pl_weather_mar2012_cleaned.columns, cleaned_columns)})
 
-
-# 打印清理后的列名以确认
 print(pl_weather_mar2012_cleaned.columns)
-
-
 
 
 '''
@@ -198,16 +183,53 @@ print(weather_mar2012.columns)
 # Some people also prefer lower case column names.
 weather_mar2012.columns = weather_mar2012.columns.str.lower()
 print(weather_mar2012.columns)
+'''
+
 
 # TODO: redo this using polars
+column_renames = {
+    "Longitude (x)": "Longitude",
+    "Latitude (y)": "Latitude",
+    "Station Name": "Station_Name",
+    "Climate ID": "Climate_ID",
+    "Date/Time (LST)": "Date/Time (LST)",
+    "Temp (°C)": "Temperature_C",
+    "Dew Point Temp (°C)": "Dew_Point_Temp_C",
+    "Rel Hum (%)": "Relative_Humidity",
+    "Wind Spd (km/h)": "Wind_Speed_kmh",
+    "Visibility (km)": "Visibility_km",
+    "Stn Press (kPa)": "Station_Pressure_kPa",
+    "Weather": "Weather",
+}
 
+pl_weather_mar2012_cleaned = pl_weather_mar2012_cleaned.rename(column_renames)
+
+# Convert all column names to lowercase
+pl_weather_mar2012_cleaned.columns = [col.lower() for col in pl_weather_mar2012_cleaned.columns]
+print(pl_weather_mar2012_cleaned.columns)
+
+
+'''
 # %%
 # Notice how it goes up to 25° C in the middle there? That was a big deal. It was March, and people were wearing shorts outside.
 weather_mar2012["temperature_c"].plot(figsize=(15, 5))
 plt.show()
+'''
 
 # TODO: redo this using polars
+dates = pl_weather_mar2012_cleaned["date/time (lst)"].to_list()  
+temperatures = pl_weather_mar2012_cleaned["temperature_c"].to_list()  
 
+plt.figure(figsize=(15, 5))
+plt.plot(dates, temperatures, label="Temperature (°C)")
+plt.xlabel("Date")
+plt.ylabel("Temperature (°C)")
+plt.title("Hourly Temperature in March 2012")
+plt.legend()
+plt.show()
+
+
+'''
 # %%
 # This one's just for fun -- we've already done this before, using groupby and aggregate! We will learn whether or not it gets colder at night. Well, obviously. But let's do it anyway.
 temperatures = weather_mar2012[["temperature_c"]].copy()
@@ -217,9 +239,36 @@ temperatures.groupby("Hour").aggregate(np.median).plot()
 plt.show()
 
 # So it looks like the time with the highest median temperature is 2pm. Neat.
+'''
+
 
 # TODO: redo this using polars
+temperatures = pl_weather_mar2012_cleaned.select(["date/time (lst)", "temperature_c"])
 
+temperatures = temperatures.with_columns(
+    pl.col("date/time (lst)").dt.hour().alias("Hour")
+)
+
+hourly_median_temps = temperatures.group_by("Hour").agg(
+    pl.col("temperature_c").median().alias("median_temperature")
+)
+
+hourly_median_temps = hourly_median_temps.sort("Hour")
+
+hours = hourly_median_temps["Hour"].to_list()
+median_temps = hourly_median_temps["median_temperature"].to_list()
+
+plt.figure(figsize=(15, 5))
+plt.plot(hours, median_temps, marker="o", label="Median Temperature (°C)")
+plt.xlabel("Hour of the Day")
+plt.ylabel("Median Temperature (°C)")
+plt.title("Median Hourly Temperature for March 2012")
+plt.legend()
+plt.grid(True)
+plt.show()
+
+
+'''
 # %%
 # Okay, so what if we want the data for the whole year? Ideally the API would just let us download that, but I couldn't figure out a way to do that.
 # First, let's put our work from above into a function that gets the weather for a given month.
@@ -259,24 +308,101 @@ def download_weather_month(year, month):
     weather_data_clean = clean_data(weather_data)
     return weather_data_clean
 
+download_weather_month(2012, 1)[:5]
+'''
+
 
 # TODO: redefine these functions using polars and your code above
+def clean_data_polars(df):
+    non_empty_columns = []
 
-# %%
-download_weather_month(2012, 1)[:5]
+    for col in df.columns:
+        null_count = df[col].null_count()
+
+        if null_count == 0:
+            # Check for empty strings only for string columns
+            if df[col].dtype == pl.Utf8:  # Only check if it's a string column
+                empty_string_count = (df[col] == "").sum()
+            else:
+                empty_string_count = 0
+
+            if empty_string_count == 0:
+                non_empty_columns.append(col)
+
+    df = df.select(non_empty_columns)
+    
+    df = df.drop(["Year", "Month", "Day", "Time (LST)"])
+
+    cleaned_columns = [col.replace('ï»¿"', "").replace("Â", "") for col in df.columns]
+    df = df.rename({old: new for old, new in zip(df.columns, cleaned_columns)})
+
+    column_renames = {
+        "Longitude (x)": "longitude",
+        "Latitude (y)": "latitude",
+        "Station Name": "station_name",
+        "Climate ID": "climate_id",
+        "Date/Time (LST)": "date_time_lst",
+        "Temp (°C)": "temperature_c",
+        "Dew Point Temp (°C)": "dew_point_temp_c",
+        "Rel Hum (%)": "relative_humidity",
+        "Wind Spd (km/h)": "wind_speed_kmh",
+        "Visibility (km)": "visibility_km",
+        "Stn Press (kPa)": "station_pressure_kpa",
+        "Weather": "weather",
+    }
+    df = df.rename(column_renames)
+
+    return df
+
+def download_weather_month_polars(year, month):
+    url_template = "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID=5415&Year={year}&Month={month}&timeframe=1&submit=Download+Data"
+    url = url_template.format(year=year, month=month)
+
+    # Fetch data from URL
+    response = requests.get(url)
+    csv_data = io.StringIO(response.text)
+
+    # Read CSV using Polars
+    df = pl.read_csv(csv_data, encoding="latin1")
+
+    # Parse datetime column
+    df = df.with_columns(
+        pl.col("Date/Time (LST)").str.strptime(pl.Datetime, "%Y-%m-%d %H:%M")
+    )
+
+    # Clean data using the custom function
+    df = clean_data_polars(df)
+
+    return df
+
+pl_download_month_1 = download_weather_month_polars(2012, 1)
+print(pl_download_month_1.head(5))
+
+'''
 # %%
 # Now, let's use a list comprehension to download all our data and then just concatenate these data frames
 # This might take a while
 data_by_month = [download_weather_month(2012, i) for i in range(1, 13)]
 weather_2012 = pd.concat(data_by_month)
 weather_2012.head()
+'''
+
 
 # TODO: do the same with polars
+pl_data_by_month = [download_weather_month_polars(2012, i) for i in range(1, 13)]
 
+# Concatenate the monthly DataFrames into one DataFrame
+pl_weather_2012 = pl.concat(pl_data_by_month)
+
+# Display the first few rows of the concatenated DataFrame
+print(pl_weather_2012.head(5))
+
+
+'''
 # %%
 # Now, let's save the data.
 weather_2012.to_csv("../data/weather_2012.csv")
-
-# TODO: use polars to save the data.
 '''
 
+# TODO: use polars to save the data.
+pl_weather_2012.write_csv("data/pl_weather_2012.csv")
