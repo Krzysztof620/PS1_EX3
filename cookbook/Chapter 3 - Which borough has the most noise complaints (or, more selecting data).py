@@ -1,6 +1,7 @@
 # %%
 import pandas as pd
 import matplotlib.pyplot as plt
+import polars as pl
 
 
 # Make the graphs a bit prettier, and bigger
@@ -19,6 +20,15 @@ complaints = pd.read_csv("../data/311-service-requests.csv", dtype="unicode")
 
 # %%
 # TODO: rewrite the above using the polars library (you might have to import it above) and call the data frame pl_complaints
+# Specify 'Incident Zip' as a string column during CSV reading
+pl_complaints = pl.read_csv(
+    "../data/311-service-requests.csv",
+    null_values="N/A",  # Handle 'N/A' as null values
+    dtypes={"Incident Zip": pl.Utf8}  # Explicitly specify 'Incident Zip' as a string
+)
+
+pl_complaints
+
 
 # %%
 # 3.1 Selecting only noise complaints
@@ -27,6 +37,7 @@ complaints[:5]
 
 # %%
 # TODO: rewrite the above in polars
+pl_complaints.head()
 
 # %%
 # To get the noise complaints, we need to find the rows where the "Complaint Type" column is "Noise - Street/Sidewalk".
@@ -35,7 +46,10 @@ noise_complaints[:3]
 
 # %%
 # TODO: rewrite the above in polars
-
+noise_complaints = pl_complaints.filter(
+    pl.col("Complaint Type") == "Noise - Street/Sidewalk"
+)
+noise_complaints.head(3)
 
 # %%
 # Combining more than one condition
@@ -46,7 +60,9 @@ complaints[is_noise & in_brooklyn][:5]
 # %%
 # TODO: rewrite the above using the Polars library. In polars these conditions are called Expressions.
 # Check out the Polars documentation for more info.
-
+pl_is_noise = pl.col("Complaint Type") == "Noise - Street/Sidewalk"
+pl_in_brooklyn = pl.col("Borough") == "BROOKLYN"
+pl_complaints.filter(pl_is_noise & pl_in_brooklyn).head(5)
 
 # %%
 # If we just wanted a few columns:
@@ -56,7 +72,9 @@ complaints[is_noise & in_brooklyn][
 
 # %%
 # TODO: rewrite the above using the polars library
-
+pl_complaints.filter(pl_is_noise & pl_in_brooklyn).select(
+    ["Complaint Type", "Borough", "Created Date", "Descriptor"]
+).head(10)
 
 # %%
 # 3.3 So, which borough has the most noise complaints?
@@ -66,7 +84,8 @@ noise_complaints["Borough"].value_counts()
 
 # %%
 # TODO: rewrite the above using the polars library
-
+pl_noise_complaints = pl_complaints.filter(pl.col("Complaint Type") == "Noise - Street/Sidewalk").select(pl.col("Borough").value_counts(sort=True, name="n")).head(10).unnest("Borough")
+pl_noise_complaints
 
 # %%
 # What if we wanted to divide by the total number of complaints?
@@ -77,7 +96,11 @@ noise_complaint_counts / complaint_counts.astype(float)
 
 # %%
 # TODO: rewrite the above using the polars library
-
+alphabetical_pl_noise_complaints = pl_complaints.filter(pl.col("Complaint Type") == "Noise - Street/Sidewalk").select(pl.col("Borough").value_counts()).unnest("Borough").sort("Borough")
+alphabetical_pl_complaint_counts = pl_complaints.select(pl.col("Borough").value_counts()).unnest("Borough").sort("Borough")
+pl_noise_complaint_fraction = alphabetical_pl_noise_complaints.join(alphabetical_pl_complaint_counts, on="Borough")
+pl_noise_complaint_fraction = pl_noise_complaint_fraction.with_columns((pl.col("count") / pl.col("count_right")).alias("count_ratio")).select(["Borough", "count_ratio"])
+pl_noise_complaint_fraction
 
 # %%
 # Plot the results
@@ -91,3 +114,5 @@ plt.show()
 
 # %%
 # TODO: rewrite the above using the polars library. NB: polars' plotting method is sometimes unstable. You might need to use seaborn or matplotlib for plotting.
+# TODO: Amend plot style to ggplot, colour to red and y-axis label
+pl_noise_complaint_fraction.plot.bar(x="Borough", y="count_ratio").properties(width=500, title="Noise Complaints by Borough (Normalized)")

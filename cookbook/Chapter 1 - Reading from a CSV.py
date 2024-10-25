@@ -1,6 +1,7 @@
 # %%
 import pandas as pd
 import matplotlib.pyplot as plt
+import polars as pl
 
 
 # %%
@@ -14,12 +15,14 @@ import matplotlib.pyplot as plt
 broken_df = pd.read_csv("../data/bikes.csv", encoding="ISO-8859-1")
 
 # TODO: please load the data with the Polars library (do not forget to import Polars at the top of the script) and call it pl_broken_df
+pl_broken_df = pl.read_csv("../data/bikes.csv", encoding="ISO-8859-1")
 
 # %%
 # Look at the first 3 rows
 broken_df[:3]
 
 # TODO: do the same with your polars data frame, pl_broken_df
+pl_broken_df.head(3)
 
 # %%
 # You'll notice that this is totally broken! `read_csv` has a bunch of options that will let us fix that, though. Here we'll
@@ -41,7 +44,17 @@ fixed_df = pd.read_csv(
 fixed_df[:3]
 
 # TODO: do the same (or similar) with polars
+# Polars has no index
+pl_fixed_df = pl.read_csv(
+    "../data/bikes.csv",
+    separator=";",
+    encoding="latin1",
+    try_parse_dates=True,
+    dtypes={"Date": pl.Date}
+)
 
+# N.B. Contains data type above column data
+pl_fixed_df.head(3)
 
 # %%
 # Selecting a column
@@ -51,14 +64,14 @@ fixed_df[:3]
 fixed_df["Berri 1"]
 
 # TODO: how would you do this with a Polars data frame?
-
+pl_fixed_df.select("Berri 1")
 
 # %%
 # Plotting is quite easy in Pandas
 fixed_df["Berri 1"].plot()
 
 # TODO: how would you do this with a Polars data frame?
-
+pl_fixed_df.plot.line(x="Date", y="Berri 1")
 
 # %%
 # We can also plot all the columns just as easily. We'll make it a little bigger, too.
@@ -67,3 +80,17 @@ fixed_df["Berri 1"].plot()
 fixed_df.plot(figsize=(15, 10))
 
 # TODO: how would you do this with a Polars data frame? With Polars data frames you might have to use the Seaborn library and it mmight not work out of the box as with pandas.
+# You can use seaborn but it internally converts df to pandas. To avoid any dependency on pandas (which would be the point of refractoring) the below using matplot should work (although will be slightly slower)
+columns = pl_fixed_df.columns
+columns.remove('Date')
+
+plt.figure(figsize=(15, 10))
+for c in columns:
+    plt.plot(pl_fixed_df.select("Date"), pl_fixed_df.select(c), label=c)
+
+plt.xlabel("Date")
+plt.legend(loc="best")
+plt.tight_layout()
+plt.show()
+
+
